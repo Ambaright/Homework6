@@ -1,0 +1,215 @@
+---
+title: "Writing R Functions and API Query"
+format: html
+editor: visual
+---
+
+# Task 1: Conceptual Questions
+
+On the exam, you’ll be asked to explain some topics. How about some practice?! Create a markdown list with the following questions:
+
+**1. What is the purpose of the `lapply()` function? What is the equivalent `purrr` function?**
+
+The `lapply()` function allows the programmer to apply functions to lists, in that the specified function is applied to each list element. The equivalent `purrr` function is `map()`, where this function will always return a list and has the 1st argument be a list and the second the function to use.
+
+**2. Suppose we have a list called `my_list`. Each element of the list is a numeric data frame (all columns are numeric). We want use `lapply()` to run the code `cor(numeric_matrix, method = "kendall")` on each element of the list. Write code to do this below! (I’m really trying to ask you how you specify `method = "kendall"` when calling `lapply()`)**
+
+`result <- lapply(X = my_list, FUN = cor, method = "kendall")`
+
+**3. What are two advantages of using `purrr` functions instead of the `BaseR` apply family?**
+
+The `purrr` functions are a tidyverse alternative to the `BaseR` apply family. The main advantage of using these functions is more consistency and some additional helper functions.
+
+**4. What is a side-effect function?**
+
+There are two types of pipeable functions: transformations and side effects. We're used to working with transformations that naturally return the modified arguement (like a data frame). A side-effect function is a function that does not return the modified argument, and thus makes it difficult to keep using the modified argument in future piping code.
+
+**5. Why can you name a variable sd in a function and not cause any issues with the sd function?**
+
+When we call a function, it creates a temporary function environment. This temporary function environment allows you to have variables with the same name in a function and in your global environment. Thus the variable `sd` in the function is a temporary variable that does not interfer with the global environment's `sd()` function.
+
+
+# Task 2: Writing R Functions
+
+1. When we start doing machine learning later in the course, a common metric used to evaluate predictions is called Root Mean Square Error (RMSE). Write a basic function (call it `getRMSE()`) that takes in a `vector` of responses and a `vector` of predictions and outputs the RMSE.
+
+- If a value is missing for the vector of responses (i.e. an NA is present), allow for additional arguments to the mean() function (elipses) that removes the NA values in the computation.
+    
+```{r}
+getRMSE <- function(response_vector, prediction_vector, ...){
+  rmse <- sqrt(mean(response_vector - prediction_vector, ...)^2)
+  
+  return(rmse)
+}
+```
+
+2. Run the following code to create some response values and predictions.
+
+```{r}
+set.seed(10)
+n <- 100
+x <- runif(n)
+resp <- 3 + 10 * x + rnorm(n)
+pred <- predict(lm(resp ~ x), data.frame(x))
+```
+
+- Test your RMSE function using this data.
+
+```{r}
+getRMSE(resp, pred)
+```
+
+
+- Repeat after replacing two of the response values with missing values (`NA_real_`).
+    
+```{r}
+resp[2] <- NA_real_
+resp[4] <- NA_real_
+```
+
+        
+– Test your RMSE function with and without specifying the behavior to deal with missing values.
+        
+Testing without specifying `na.rm = TRUE`.
+
+```{r}
+getRMSE(resp, pred)
+```
+
+Testing with specifying `na.rm = TRUE`.
+
+```{r}
+getRMSE(resp, pred, na.rm = TRUE)
+```
+
+3. Another common metric for evaluating predictions is mean absolute deviation. Write a function called getMAE() that follows the specifications of the getRMSE() function.
+
+```{r}
+getMAE <- function(response_vector, prediction_vector, ...){
+  mae <- mean(abs(response_vector - prediction_vector), ...)
+  
+  return(mae)
+}
+```
+
+4. Run the following code to create some response values and predictions.
+
+```{r}
+set.seed(10)
+n <- 100
+x <- runif(n)
+resp <- 3 + 10 * x + rnorm(n)
+pred <- predict(lm(resp ~ x), data.frame(x))
+```
+
+- Test your MAE function using this data.
+    
+```{r}
+getMAE(resp, pred)
+```
+
+- Repeat after replacing two of the response values with missing values (NA_real_)
+    
+```{r}
+resp[2] <- NA_real_
+resp[4] <- NA_real_
+```
+
+– Test your MAE function with and without specifying the behavior to deal with missing values.
+        
+Test the MAE function without specifying `na.rm = TRUE`.
+
+```{r}
+getMAE(resp, pred)
+```
+
+Test the MAE function with specifying `na.rm = TRUE`.
+
+```{r}
+getMAE(resp, pred, na.rm = TRUE)
+```
+
+5. Let’s create a **wrapper** function that can be used to get either or both metrics returned with a single function call. Do not rewrite your above two functions, call them inside the wrapper function (we would call the `getRMSE()` and `getMAE()` functions **helper functions**). When returning your values, give them appropriate names.
+
+- The function should check that two numeric (atomic) vectors have been passed (consider is.vector(), is.atomic(), and is.numeric()). If not, a message should print and the function should exit.
+
+- The function should return both metrics by default and include names. The behavior should be able to be changed using a character string of metrics to find.
+
+
+```{r}
+getMetrics <- function(resp_vector, pred_vector, metrics = c("RMSE", "MAE"), ...){
+  
+  #Check that resp_vector is a numeric (atomic) vector
+  if(!(is.vector(resp_vector) && is.atomic(resp_vector) && is.numeric(resp_vector))) {
+    stop("Response vector provided is not a numeric (atomic) vector.")
+  }
+  
+  #Check that pred_vector is a numeric (atomic) vector
+  if(!(is.vector(pred_vector) && is.atomic(pred_vector) && is.numeric(pred_vector))) {
+    stop("Predictor vector provided is not a numeric (atomic) vector.")
+  }
+  
+  results <- list()
+  
+  if("RMSE" %in% metrics){
+    results$RMSE <- getRMSE(resp_vector, pred_vector, ...)
+  }
+
+  if("MAE" %in% metrics){
+    results$MAE <- getMAE(resp_vector, pred_vector, ...)
+  }  
+
+  return(results)  
+}
+```
+
+6. Run the following code to create some response values and predictions.
+
+```{r}
+set.seed(10)
+n <- 100
+x <- runif(n)
+resp <- 3 + 10 * x + rnorm(n)
+pred <- predict(lm(resp ~ x), data.frame(x))
+```
+
+- Test your new function using this data. Call it once asking for each metric individually and once specifying both metrics.
+
+```{r}
+#Specifying RMSE
+getMetrics(resp, pred, metrics = "RMSE")
+```
+
+```{r}
+#Specifying MAE
+getMetrics(resp, pred, metrics = "MAE")
+```
+
+```{r}
+#Specifying RMSE and MAE
+getMetrics(resp, pred, metrics = c("RMSE", "MAE"))
+```
+
+- Repeat with replacing two of the response values with missing values (NA_real_).
+
+```{r}
+#Replace two of the response values with missing values
+resp[2] <- NA_real_
+resp[4] <- NA_real_
+```
+
+```{r}
+#Repeat specifying RSME without specifying na.rm = TRUE
+getMetrics(resp, pred, metrics = "RMSE")
+```
+
+```{r}
+#Repeat specifying MAE with specifying na.rm = TRUE
+getMetrics(resp, pred, metrics = "MAE", na.rm = TRUE)
+```
+
+```{r}
+#Repeat specifying RSME and MAE without specifying na.rm = TRUE
+getMetrics(resp, pred, metrics = c("RMSE", "MAE"))
+```
+
