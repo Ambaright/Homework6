@@ -213,3 +213,14 @@ getMetrics(resp, pred, metrics = "MAE", na.rm = TRUE)
 getMetrics(resp, pred, metrics = c("RMSE", "MAE"))
 ```
 
+# Task 3: Querying an API and a Tidy-Style Function
+
+For this section, you’ll connect to the news API here: newsapi.org. 
+
+1. Use GET() from the httr package to return information about a topic that you are interested in that has been in the news lately (store the result as an R object). Note: We can only look 30 days into the past with a free account.
+
+```{r}
+library(DBI)
+library(httr)
+```
+
