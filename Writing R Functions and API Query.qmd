@@ -219,8 +219,121 @@ For this section, you’ll connect to the news API here: newsapi.org.
 
 1. Use GET() from the httr package to return information about a topic that you are interested in that has been in the news lately (store the result as an R object). Note: We can only look 30 days into the past with a free account.
 
+For this task, let's look at information related to hurricanes.
+
 ```{r}
-library(DBI)
+library(jsonlite)
 library(httr)
+library(tidyverse)
+
+url_hurricanes <- "https://newsapi.org/v2/everything?q=hurricane&apiKey=065b6930902c4950902e45df34a5a107"
+
+hurricanes_info <- httr::GET(url_hurricanes)
+```
+
+2. Parse what is returned and find your way to the data frame that has the actual article information in it (check content). Use the pluck() function from purrr to grab the articles element. Note the first column should be a list column!
+
+
+```{r}
+hurricanes_info <- hurricanes_info |>
+  content("text") |>
+  fromJSON(simplifyDataFrame = TRUE) |>
+  purrr::pluck("articles")
+```
+
+3. Now write a quick function that allows the user to easily query this API. The inputs to the function should be the title/subject to search for (string), a time period to search from (string - you’ll search from that time until the present), and an API key.
+
+For this function, we will need to be sure that the "from_date" is in the "YYYY-MM-DD" format.
+
+```{r}
+query_news_api <- function(subject, from_date, api_key){
+  base_url <- "https://newsapi.org/v2/everything"
+  
+  url <- paste0(base_url, "?q=", subject, "&from=", from_date, "&apiKey=", api_key)
+  
+  query_info <- httr::GET(url) |>
+    content("text") |>
+    fromJSON(simplifyDataFrame = TRUE) |>
+    purrr::pluck("articles")
+  
+  return(query_info)
+}
+```
+
+Use your function twice to grab some data (save each as an object)!
+
+First we can grab some data on Hurricane Helene from the day before it made landfall in North Carolina (2024-09-25).
+
+```{r}
+my_api_key <- "065b6930902c4950902e45df34a5a107"
+hurricane_helene_info <- query_news_api("hurricane_helene", "2024-09-25", my_api_key)
+head(hurricane_helene_info)
+```
+
+Our second query can be on college football from this last week.
+
+```{r}
+college_football_info <- query_news_api("college_football", "2024-09-16", my_api_key)
+head(college_football_info)
+```
+
+4. With one of your objects, summarize the name of the source for each article. That is, find a one-way contingency table for this information.
+
+```{r}
+table(hurricane_helene_info$source$name)
+```
+
+5. For each of your returned data objects, turn the `publishedAt` column into a date column using the `lubridate package` (see the `PARSE DATE-TIMES` section of the cheat sheet!). 
+
+- Then sort the two data frames, each by their new parsed date published column. 
+
+- Finally, create a new variable called `pub_diff` that is the difference in time between the articles’ published dates (use `lag()` with `mutate()`). Save the modifications as new data frames.
+
+```{r}
+library(lubridate)
+
+#A function to modify the data objects with the required specifications
+modify_query_df <- function(df){
+  
+  df <- df |>
+    mutate(publishedAt = ymd_hms(publishedAt)) |>
+    arrange(publishedAt) |>
+    mutate(pub_diff = as.numeric(difftime(publishedAt, lag(publishedAt), units = "mins")))
+  
+  return(df)
+}
+
+modified_hurricane_helene_df <- modify_query_df(hurricane_helene_info)
+modified_college_football_df <- modify_query_df(college_football_info)
+```
+
+6. With each of your resulting two data objects (each a data frame, which is a special case of a list) do the following actions:
+
+- Choose one of your data frames. Subset the data frame to only return the date version of `publishedAt` and the `pub_diff` variables. Then use one call to the map() function to return the mean, standard deviation, and median of these columns. You should use a custom anonymous function using ‘shorthand’ notation (\(x) ...). Note that the pub_diff variable includes an NA so you’ll need to set na.rm = TRUE in the calls to mean(0, sd(), and median().
+
+```{r}
+library(purrr)
+
+#Create a second modification function for publication times
+publish_time_stats <- function(df){
+  
+  subset_df <- df |>
+    select(publishedAt, pub_diff)
+  
+  stats <- map(subset_df, \(x) list(mean = mean(x, na.rm = TRUE),
+                                    sd = sd(x, na.rm = TRUE),
+                                    median = median(x, na.rm = TRUE)))
+  
+  stats_df <- as.data.frame(stats)
+  
+  return(stats_df)
+  
+}
+
+hurricane_helene_stats <- publish_time_stats(modified_hurricane_helene_df)
+print(hurricane_helene_stats)
+
+college_football_stats <- publish_time_stats(modified_college_football_df)
+print(college_football_stats)
 ```
 
